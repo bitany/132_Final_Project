@@ -202,8 +202,8 @@ class Program:
 
 if __name__ == "__main__":
     try:
-        # Access file with group extension (replace 'isk' with your group shortcut)
-        filename = "isk.inc"  # Change this to your group's file extension
+        # Access file with group # extension (replace 'isk' with your group shortcut)
+        filename = "isk.inc"
         
         print(f"[INFO] Loading program from {filename}...")
         

@@ -3,17 +3,25 @@ import copy
 
 class Storage:
 	def __init__(self, data={}):
-		self.data = copy.deepcopy(data)
+		self.data = copy.deepcopy(data)			# creates copy of data to avoid reference issues
+
 	def load(self, address, isCode=False):
+		# converts the string address to decimal if needed
 		if type(address)==type(str()) and len(address)==Length.precision:
 			address = Precision.spbin2dec(address)
 		value = self.data[address]
+
+		# convert binary string to decimal unless it's code
 		if not isCode and isinstance(value, str) and len(value) == Length.precision:
 			value = Precision.spbin2dec(value)
 		return value
+	
 	def store(self,address,value):
+		# converts string address to decimal
 		if type(address)==type(str()) and len(address)==Length.precision:
 			address = Precision.spbin2dec(address)
+
+		# store values as-is, convert numbers to binary	
 		if type(value)==type(str()):
 			self.data[address] = value
 		else:

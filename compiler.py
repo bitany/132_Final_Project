@@ -44,7 +44,6 @@ class Instruction:
 
     @staticmethod
     def encode(inst):                                       # Encode a single instruction into 32-bit binary string
-       
         if inst[0] == "FUNC":                               # FUNC treated same as EOP (end of program)
             return "0" * 32
 
@@ -52,18 +51,15 @@ class Instruction:
         opcode = "00000"                                    # default opcode
 
         if inst[0] == "DEF":                                # def treated as Mov to preserve DEF in metadata
-
             # Find MOV opcode
             for i, group in enumerate(operations):   
                 if "MOV" in group:
                     opcode = operationCodes[0][i] + operationCodes[1][group.index("MOV")]
                     break
         else:
-
             # Normal opcode lookup for other instructions
             for i, group in enumerate(operations):
                 if inst[0] in group:
-
                     # group code = 2 bits, instruction code = 3 bits
                     opcode = operationCodes[0][i] + operationCodes[1][group.index(inst[0])]
                     break
@@ -83,7 +79,6 @@ class Instruction:
 
         # Ensure inst_code is exactly 32 bits
         inst_code = Length.addZeros(inst_code, 32)
-
         return inst_code
 
     @staticmethod
@@ -107,7 +102,7 @@ class Instruction:
                 try:
                     value = int(operand[1:])
                     value_bin = Length.addZeros(bin(value)[2:], 8)
-                    return ("100", value_bin)
+                    return ("111", value_bin)
                 except ValueError:
                     return ("100", "00000000")
 
@@ -127,7 +122,7 @@ class Instruction:
             elif operand == "POP":
                 return ("110", "00000000")
 
-            # Try to convert string to number for immediate value
+            # Convert string to number for immediate value
             elif operand.isdigit():
                 value = int(operand)
                 value_bin = Length.addZeros(bin(value)[2:], 8)
@@ -165,7 +160,6 @@ class Instruction:
                 return ("100", "00000000")  # zero as default if var is not found
 
         return ("000", "00000000")          # Default mode
-        # add print statement here about unrecognized
 
     @staticmethod
     def encodeProgram(program):
