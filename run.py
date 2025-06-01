@@ -1,7 +1,7 @@
 # run(inc).py - Executes the program
 
 import storage
-from compiler import Instruction
+from compiler import Instruction, operations    #operation was imported from compiler.py
 from addressing import Access, AddressingMode
 from convert import Precision, Length
 
@@ -26,9 +26,12 @@ class Except:
 
 class Program:
     def __init__(self, program):
-        # Encode the program to memory
-        if "PC" not in storage.register.data:
-            storage.register.store("PC", 0)
+        # Initialize PC to 8 (start of instruction memory)
+        storage.register.store("PC", 8)
+        storage.register.store("IR", 8)
+        storage.register.store("BR", 8)
+        
+        # Parse and encode instructions
         parsed = [[part.strip(',') for part in instr.split()] for instr in program]
         self.program = Instruction.preEncode(parsed)
         Instruction.encodeProgram(self.program)
@@ -99,66 +102,86 @@ class Program:
 
     def run(self):
         pc = int(storage.register.load("PC"))
+        print("\n[INFO] Starting program execution...")
 
         while True:
-            code = storage.memory.load(pc, isCode=True)
-            pc += 1
-            storage.register.store("PC", pc)
+            try:
+                code = storage.memory.load(pc)
+                print(f"\n[DEBUG] Executing instruction at PC={pc}")
+                print(f"[DEBUG] Instruction code: {code}")
+                
+                pc += 1
+                storage.register.store("PC", pc)
 
-            # Decode opcode and operands
-            opcode_bin = code[:5]
-            op1_code = code[5:16]  # 3 + 8 bits
-            op2_code = code[16:27]  # 3 + 8 bits
-            # extra = code[27:] (unused)
+                # Decode opcode and operands
+                opcode_bin = code[:5]
+                op1_code = code[5:16]  # 3 + 8 bits
+                op2_code = code[16:27]  # 3 + 8 bits
+                
+                # Decode operation name from opcode_bin
+                op_group = int(opcode_bin[:2], 2)
+                cat_index = int(opcode_bin[2:], 2)
+                try:
+                    opcode = operations[op_group][cat_index]
+                    print(f"[DEBUG] Decoded opcode: {opcode}")
+                except:
+                    print(f"[ERROR] Invalid opcode: group={op_group}, index={cat_index}")
+                    continue
 
-            # Decode operation name from opcode_bin
-            op_group = int(opcode_bin[:2], 2)
-            cat_index = int(opcode_bin[2:], 2)
-            opcode = operations[op_group][cat_index]
+                # Get operands
+                if opcode in ["ADD", "SUB", "MUL", "DIV", "MOD"]:
+                    op1_val = self.getOp(op1_code)
+                    op2_val = self.getOp(op2_code)
+                    print(f"[DEBUG] Arithmetic: {opcode} {op1_val}, {op2_val}")
+                    result = self.execute((op1_val, op2_val), opcode)
+                    self.write(op1_code, result, opcode)
 
-            # Get operands
-            if opcode in ["ADD", "SUB", "MUL", "DIV", "MOD"]:
-                op1_val = self.getOp(op1_code)
-                op2_val = self.getOp(op2_code)
-                result = self.execute((op1_val, op2_val), opcode)
-                self.write(op1_code, result, opcode)
+                elif opcode == "MOV":
+                    op1_val = self.getOp(op2_code)
+                    print(f"[DEBUG] Move: {op1_code} <- {op1_val}")
+                    self.write(op1_code, op1_val, opcode)
 
-            elif opcode == "MOV":
-                op1_val = self.getOp(op2_code)
-                self.write(op1_code, op1_val, opcode)
+                elif opcode == "PUSH":
+                    val = self.getOp(op1_code)
+                    push_addr = AddressingMode.stack("push")
+                    print(f"[DEBUG] Push: {val} to stack")
+                    storage.memory.store(push_addr, val)
 
-            elif opcode == "PUSH":
-                val = self.getOp(op1_code)
-                push_addr = AddressingMode.stack("push")
-                storage.memory.store(push_addr, val)
+                elif opcode == "POP":
+                    val = AddressingMode.stack("pop")
+                    print(f"[DEBUG] Pop: {val} from stack")
+                    self.write(op1_code, val, opcode)
 
-            elif opcode == "POP":
-                val = AddressingMode.stack("pop")
-                self.write(op1_code, val, opcode)
-
-            elif opcode == "JMP":
-                target = self.getOp(op1_code)
-                storage.register.store("PC", int(target))
-
-            elif opcode in ["JEQ", "JNE", "JLT", "JLE", "JGT", "JGE"]:
-                op1_val = self.getOp(op1_code)
-                op2_val = self.getOp(op2_code)
-                target = int(storage.register.load("PC"))
-
-                cond = False
-                if opcode == "JEQ": cond = op1_val == op2_val
-                if opcode == "JNE": cond = op1_val != op2_val
-                if opcode == "JLT": cond = op1_val < op2_val
-                if opcode == "JLE": cond = op1_val <= op2_val
-                if opcode == "JGT": cond = op1_val > op2_val
-                if opcode == "JGE": cond = op1_val >= op2_val
-
-                if cond:
-                    target = self.getOp(code[5:16])  # jump address in op1
+                elif opcode == "JMP":
+                    target = self.getOp(op1_code)
+                    print(f"[DEBUG] Jump to: {target}")
                     storage.register.store("PC", int(target))
 
-            elif opcode == "EOP":
-                print("[Program Terminated]")
+                elif opcode in ["JEQ", "JNE", "JLT", "JLE", "JGT", "JGE"]:
+                    op1_val = self.getOp(op1_code)
+                    op2_val = self.getOp(op2_code)
+                    target = int(storage.register.load("PC"))
+                    print(f"[DEBUG] Conditional Jump: {opcode} {op1_val}, {op2_val}")
+
+                    cond = False
+                    if opcode == "JEQ": cond = op1_val == op2_val
+                    if opcode == "JNE": cond = op1_val != op2_val
+                    if opcode == "JLT": cond = op1_val < op2_val
+                    if opcode == "JLE": cond = op1_val <= op2_val
+                    if opcode == "JGT": cond = op1_val > op2_val
+                    if opcode == "JGE": cond = op1_val >= op2_val
+
+                    if cond:
+                        target = self.getOp(code[5:16])  # jump address in op1
+                        print(f"[DEBUG] Jump condition true, jumping to: {target}")
+                        storage.register.store("PC", int(target))
+
+                elif opcode == "EOP":
+                    print("\n[Program Terminated]")
+                    break
+                    
+            except Exception as e:
+                print(f"[ERROR] Error executing instruction at PC={pc}: {str(e)}")
                 break
 
 if __name__ == "__main__":
@@ -179,11 +202,21 @@ if __name__ == "__main__":
                     instructions.append(clean_line)
         
         print(f"[INFO] Loaded {len(instructions)} instructions")
+        print("\nInstructions to execute:")
+        for i, inst in enumerate(instructions):
+            print(f"{i}: {inst}")
+        
+        # Initialize storage
+        print("\n[INFO] Initializing storage...")
+        storage.register.store("SPR", 120)  # Set stack pointer
+        storage.register.store("TSP", 120)  # Set top of stack pointer
         
         # Pass instructions to Program class
+        print("\n[INFO] Creating program...")
         program = Program(instructions)
         
         # Program class calls run
+        print("\n[INFO] Running program...")
         program.run()
 
         # Display final state
@@ -194,12 +227,16 @@ if __name__ == "__main__":
         print("\nFinal Register State:")
         storage.register.dispStorage()
 
-        print("\nMemory Contents (Instructions + Data):")
+        # Display instruction memory separately
+        storage.memory.dispInstructionMemory()
+
+        print("\nMemory Contents (Data):")
         storage.memory.dispStorage()
 
     except FileNotFoundError:
         print(f"[ERROR] Instruction file not found. Please ensure the file exists with your group's extension.")
         print("Expected filename format: [group_shortcut].inc")
     except Exception as e:
-        file_exception = Program.exception("FileError", str(e))
-        file_exception.dispMSG()
+        print(f"[ERROR] Unexpected error: {str(e)}")
+        import traceback
+        traceback.print_exc()

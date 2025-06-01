@@ -21,6 +21,12 @@ class Instruction:
     def preEncode(instrxns):
         result = []
         for inst in instrxns:
+            if not isinstance(inst, list):
+                inst = inst.split()
+            
+            if len(inst) == 0:
+                continue
+                
             if inst[0] == "DEV":                              # DEV treated same as MOV 
                 if len(inst) >= 3:
                     result.append(["MOV", inst[1], inst[2]])
@@ -30,7 +36,7 @@ class Instruction:
                 result.append(inst)                         # Keep DEF as is
             elif inst[0].startswith("J"):                   # Handle conditional jumps
                 result.append(inst)
-            elif isinstance(inst[1], list):                 # Handle indexing
+            elif len(inst) > 1 and isinstance(inst[1], list):  # Handle indexing
                 result.append(inst)
             else:
                 result.append(inst)
@@ -152,18 +158,16 @@ class Instruction:
         pc = int(storage.register.load("PC"))
         encoded_program = Instruction.preEncode(program)
 
+        print("[INFO] Encoding program instructions...")
         for inst in encoded_program:
             if inst[0] in ["DEF", "DEB"]:
-                # handling for DEF and DEB
+                print(f"[DEBUG] Skipping {inst[0]} instruction")
                 continue
             
             bin_code = Instruction.encode(inst)
-            storage.memory.store(pc, {
-                'binary': bin_code,
-                'instr': inst[0],
-                'op1': inst[1] if len(inst) > 1 else None,
-                'op2': inst[2] if len(inst) > 2 else None
-            })
+            print(f"[DEBUG] Encoded {inst[0]}: {bin_code}")
+            storage.memory.store(pc, bin_code)
             pc = int(pc + 1)
 
         storage.register.store("PC", int(pc))
+        print("[INFO] Program encoding complete")
