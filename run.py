@@ -27,9 +27,9 @@ class Except:
 class Program:
     def __init__(self, program):
         # Initialize PC to 8 (start of instruction memory)
-        storage.register.store("PC", 8)
-        storage.register.store("IR", 8)
-        storage.register.store("BR", 8)
+        storage.register.storeRegisterValue("PC", 8)
+        storage.register.storeRegisterValue("IR", 8)
+        storage.register.storeRegisterValue("BR", 8)
         
         # Parse and encode instructions
         parsed = [[part.strip(',') for part in instr.split()] for instr in program]
@@ -47,41 +47,55 @@ class Program:
         addr = int(code[Length.opMode:], 2)
 
         if mode == "000":  # Register
-            val = AddressingMode.register(f"R{addr}")
+            return int(storage.register.loadRegisterValue(f"R{addr}"))
         elif mode == "001":  # Register indirect
-            val = AddressingMode.register_indirect(f"R{addr}")
+            reg_val = int(storage.register.loadRegisterValue(f"R{addr}"))
+            return int(storage.memory.load(reg_val))
         elif mode == "010":  # Direct
-            val = AddressingMode.direct(addr)
+            return int(storage.memory.load(addr))
         elif mode == "011":  # Indirect
-            val = AddressingMode.indirect(addr)
-        elif mode == "100":  # Indexed
-            val = AddressingMode.indexed(addr)
+            indirect_addr = int(storage.memory.load(addr))
+            return int(storage.memory.load(indirect_addr))
+        elif mode == "100":  # Immediate value
+            return addr  # Return the value directly
         elif mode == "101":  # Stack push
-            val = AddressingMode.stack("push")
+            sp = storage.register.getStackPointer()
+            storage.register.updateStackPointer(sp + 1)
+            return sp
         elif mode == "110":  # Stack pop
-            val = AddressingMode.stack("pop")
-        else:
-            val = 0
-        return val
+            sp = storage.register.getStackPointer()
+            if sp > 0:
+                val = int(storage.memory.load(sp - 1))
+                storage.register.updateStackPointer(sp - 1)
+                return val
+        return 0
 
     def write(self, dest_code, src_val, movcode):
         mode = dest_code[:Length.opMode]
         addr = int(dest_code[Length.opMode:], 2)
 
-        if mode == "000":  # Register
-            storage.register.store(f"R{addr}", src_val)
-        elif mode == "001":  # Register indirect
-            reg_addr = storage.register.load(f"R{addr}")
-            storage.memory.store(reg_addr, src_val)
-        elif mode == "010":  # Direct
-            storage.memory.store(addr, src_val)
-        elif mode == "011":  # Indirect
-            indirect_addr = storage.memory.load(addr)
-            storage.memory.store(indirect_addr, src_val)
-        elif mode == "101":  # Stack push
-            push_addr = AddressingMode.stack("push")
-            storage.memory.store(push_addr, src_val)
-        # Pop is not written to, it fetches only
+        try:
+            if mode == "000":  # Register
+                storage.register.storeRegisterValue(f"R{addr}", int(src_val))
+                print(f"[DEBUG] Wrote {src_val} to R{addr}")
+            elif mode == "001":  # Register indirect
+                reg_addr = int(storage.register.loadRegisterValue(f"R{addr}"))
+                storage.memory.store(reg_addr, int(src_val))
+                print(f"[DEBUG] Wrote {src_val} to memory[{reg_addr}]")
+            elif mode == "010":  # Direct
+                storage.memory.store(addr, int(src_val))
+                print(f"[DEBUG] Wrote {src_val} to memory[{addr}]")
+            elif mode == "011":  # Indirect
+                indirect_addr = int(storage.memory.load(addr))
+                storage.memory.store(indirect_addr, int(src_val))
+                print(f"[DEBUG] Wrote {src_val} to memory[{indirect_addr}]")
+            elif mode == "101":  # Stack push
+                sp = storage.register.getStackPointer()
+                storage.memory.store(sp, int(src_val))
+                storage.register.updateStackPointer(sp + 1)
+                print(f"[DEBUG] Pushed {src_val} to stack at {sp}")
+        except Exception as e:
+            print(f"[ERROR] Write failed: {str(e)}")
 
     def execute(self, result, opcode):
         if opcode == "ADD":
@@ -101,88 +115,81 @@ class Program:
         return 0
 
     def run(self):
-        pc = int(storage.register.load("PC"))
+        pc = 8  # Start at instruction memory
         print("\n[INFO] Starting program execution...")
 
-        while True:
+        while pc < 72:  # Only execute within instruction memory range
             try:
-                code = storage.memory.load(pc)
+                code = storage.memory.loadInstruction(pc)
+                if not code or all(bit == '0' for bit in code):
+                    break
+
                 print(f"\n[DEBUG] Executing instruction at PC={pc}")
                 print(f"[DEBUG] Instruction code: {code}")
                 
-                pc += 1
-                storage.register.store("PC", pc)
-
                 # Decode opcode and operands
                 opcode_bin = code[:5]
-                op1_code = code[5:16]  # 3 + 8 bits
-                op2_code = code[16:27]  # 3 + 8 bits
+                op1_code = code[5:16]
+                op2_code = code[16:27]
                 
-                # Decode operation name from opcode_bin
+                # Get operation name
                 op_group = int(opcode_bin[:2], 2)
                 cat_index = int(opcode_bin[2:], 2)
+                
                 try:
                     opcode = operations[op_group][cat_index]
-                    print(f"[DEBUG] Decoded opcode: {opcode}")
-                except:
-                    print(f"[ERROR] Invalid opcode: group={op_group}, index={cat_index}")
+                except (IndexError, KeyError):
+                    pc += 1
                     continue
 
-                # Get operands
-                if opcode in ["ADD", "SUB", "MUL", "DIV", "MOD"]:
+                print(f"[DEBUG] Operation: {opcode}")
+
+                # Execute instruction
+                if opcode == "MOV":
+                    val = self.getOp(op2_code)  # Source
+                    print(f"[DEBUG] Moving value {val}")
+                    self.write(op1_code, val, opcode)  # Destination
+                elif opcode in ["ADD", "SUB", "MUL", "DIV"]:
                     op1_val = self.getOp(op1_code)
                     op2_val = self.getOp(op2_code)
-                    print(f"[DEBUG] Arithmetic: {opcode} {op1_val}, {op2_val}")
-                    result = self.execute((op1_val, op2_val), opcode)
+                    print(f"[DEBUG] {opcode}: {op1_val} {opcode} {op2_val}")
+                    
+                    if opcode == "ADD": result = op1_val + op2_val
+                    elif opcode == "SUB": result = op1_val - op2_val
+                    elif opcode == "MUL": result = op1_val * op2_val
+                    elif opcode == "DIV" and op2_val != 0: result = op1_val / op2_val
+                    else: result = 0
+                    
+                    print(f"[DEBUG] Result: {result}")
                     self.write(op1_code, result, opcode)
-
-                elif opcode == "MOV":
-                    op1_val = self.getOp(op2_code)
-                    print(f"[DEBUG] Move: {op1_code} <- {op1_val}")
-                    self.write(op1_code, op1_val, opcode)
-
                 elif opcode == "PUSH":
                     val = self.getOp(op1_code)
-                    push_addr = AddressingMode.stack("push")
-                    print(f"[DEBUG] Push: {val} to stack")
-                    storage.memory.store(push_addr, val)
-
+                    print(f"[DEBUG] Pushing value {val}")
+                    self.write("101" + "0"*8, val, opcode)
                 elif opcode == "POP":
-                    val = AddressingMode.stack("pop")
-                    print(f"[DEBUG] Pop: {val} from stack")
-                    self.write(op1_code, val, opcode)
-
+                    sp = storage.register.getStackPointer()
+                    if sp > 0:
+                        val = storage.memory.load(sp - 1)
+                        print(f"[DEBUG] Popping value {val}")
+                        self.write(op1_code, val, opcode)
+                        storage.register.updateStackPointer(sp - 1)
                 elif opcode == "JMP":
                     target = self.getOp(op1_code)
-                    print(f"[DEBUG] Jump to: {target}")
-                    storage.register.store("PC", int(target))
-
-                elif opcode in ["JEQ", "JNE", "JLT", "JLE", "JGT", "JGE"]:
-                    op1_val = self.getOp(op1_code)
-                    op2_val = self.getOp(op2_code)
-                    target = int(storage.register.load("PC"))
-                    print(f"[DEBUG] Conditional Jump: {opcode} {op1_val}, {op2_val}")
-
-                    cond = False
-                    if opcode == "JEQ": cond = op1_val == op2_val
-                    if opcode == "JNE": cond = op1_val != op2_val
-                    if opcode == "JLT": cond = op1_val < op2_val
-                    if opcode == "JLE": cond = op1_val <= op2_val
-                    if opcode == "JGT": cond = op1_val > op2_val
-                    if opcode == "JGE": cond = op1_val >= op2_val
-
-                    if cond:
-                        target = self.getOp(code[5:16])  # jump address in op1
-                        print(f"[DEBUG] Jump condition true, jumping to: {target}")
-                        storage.register.store("PC", int(target))
-
+                    print(f"[DEBUG] Jump target: {target}")
+                    if 8 <= target < 72:  # Stay within instruction memory
+                        pc = target
+                        continue
                 elif opcode == "EOP":
-                    print("\n[Program Terminated]")
                     break
-                    
+
+                pc += 1
+                storage.register.storeRegisterValue("PC", pc)
+
             except Exception as e:
-                print(f"[ERROR] Error executing instruction at PC={pc}: {str(e)}")
-                break
+                print(f"[ERROR] at PC={pc}: {str(e)}")
+                pc += 1
+
+        print("\n[Program Terminated]")
 
 if __name__ == "__main__":
     try:
@@ -198,7 +205,7 @@ if __name__ == "__main__":
             for line in lines:
                 # Remove comments and whitespace
                 clean_line = line.split(";")[0].strip()
-                if clean_line:  # Only add non-empty lines
+                if clean_line and not clean_line.isspace():  # Only add non-empty lines
                     instructions.append(clean_line)
         
         print(f"[INFO] Loaded {len(instructions)} instructions")
@@ -224,14 +231,10 @@ if __name__ == "__main__":
         print("FINAL SYSTEM STATE")
         print("="*50)
         
-        print("\nFinal Register State:")
-        storage.register.dispStorage()
-
-        # Display instruction memory separately
+        # Use new display methods
+        storage.register.dispRegisters()
         storage.memory.dispInstructionMemory()
-
-        print("\nMemory Contents (Data):")
-        storage.memory.dispStorage()
+        storage.memory.dispDataMemory()
 
     except FileNotFoundError:
         print(f"[ERROR] Instruction file not found. Please ensure the file exists with your group's extension.")

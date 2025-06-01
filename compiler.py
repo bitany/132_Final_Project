@@ -94,7 +94,7 @@ class Instruction:
         001 - Register Indirect   (e.g., *R1)
         010 - Direct             (e.g., var)
         011 - Indirect           (e.g., *var)
-        100 - Indexed            (e.g., [base, offset])
+        100 - Immediate          (e.g., #5)
         101 - Stack Push         (PUSH)
         110 - Stack Pop          (POP)
         """
@@ -102,6 +102,14 @@ class Instruction:
             return ("000", "00000000")
 
         if isinstance(operand, str):
+            # Immediate value (e.g. "#5")
+            if operand.startswith("#"):
+                try:
+                    value = int(operand[1:])
+                    value_bin = Length.addZeros(bin(value)[2:], 8)
+                    return ("100", value_bin)
+                except ValueError:
+                    return ("100", "00000000")
 
             # Register direct mode (e.g. "R1")
             if operand.startswith("R") and operand[1:].isdigit():
@@ -118,6 +126,12 @@ class Instruction:
                 return ("101", "00000000")
             elif operand == "POP":
                 return ("110", "00000000")
+
+            # Try to convert string to number for immediate value
+            elif operand.isdigit():
+                value = int(operand)
+                value_bin = Length.addZeros(bin(value)[2:], 8)
+                return ("100", value_bin)
 
             # Indirect mode variable (e.g. "*var")
             elif operand.startswith("*") and not operand.startswith("*R"):
