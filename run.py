@@ -54,8 +54,17 @@ class Program:
         elif mode == "010":  # Direct
             return int(storage.memory.load(addr))
         elif mode == "011":  # Indirect
-            indirect_addr = int(storage.memory.load(addr))
-            return int(storage.memory.load(indirect_addr))
+            try:
+                # First load the address from memory
+                addr_value = int(storage.memory.load(addr))
+                print(f"[DEBUG] Indirect addressing: First load from memory[{addr}] = {addr_value}")
+                # Then load the value from that address
+                final_value = int(storage.memory.load(addr_value))
+                print(f"[DEBUG] Indirect addressing: Then load from memory[{addr_value}] = {final_value}")
+                return final_value
+            except Exception as e:
+                print(f"[ERROR] Indirect addressing failed: {str(e)}")
+                return 0
         elif mode == "100":  # Immediate value
             return addr  # Return the value directly
         elif mode == "101":  # Stack push
