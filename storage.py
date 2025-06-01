@@ -33,6 +33,11 @@ class Storage:
 			print(f"{key}: {v}")
 		except:
 			print(f"Address: {key} does not exists!")
+	def dispInstructionMemory(self):
+		print("\nInstruction Memory (8-71):")
+		for k in range(8, 72):
+			if k in self.data:
+				print(f"{k}: {self.data[k]}")
 	@staticmethod
 	# predefined values
 	def setVariable(var,name,addr,value):
