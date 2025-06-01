@@ -8,7 +8,7 @@ class Storage:
 		if type(address)==type(str()) and len(address)==Length.precision:
 			address = Precision.spbin2dec(address)
 		value = self.data[address]
-		if not isCode:
+		if not isCode and isinstance(value, str) and len(value) == Length.precision:
 			value = Precision.spbin2dec(value)
 		return value
 	def store(self,address,value):
@@ -26,18 +26,82 @@ class Storage:
 				self.store(i,0)
 	def dispStorage(self):
 		for k,v in self.data.items():
-			print(f"{k}: {v} = {Precision.spbin2dec(v)}")
+			if isinstance(v, str) and len(v) == Length.precision:
+				if k >= 8 and k < 72:  # Instruction memory range
+					print(f"{k}: {v} (instruction)")
+				else:
+					print(f"{k}: {v} = {Precision.spbin2dec(v)}")
+			else:
+				print(f"{k}: {v}")
 	def dispStorageSlot(self,key,isCode=False):
 		try:
 			v = self.load(key)
 			print(f"{key}: {v}")
 		except:
 			print(f"Address: {key} does not exists!")
+
+	# New methods for instruction handling
+	def loadInstruction(self, address):
+		"""Load an instruction without converting to decimal"""
+		if type(address)==type(str()) and len(address)==Length.precision:
+			address = Precision.spbin2dec(address)
+		return self.data[address]
+
 	def dispInstructionMemory(self):
+		"""Display instruction memory separately"""
 		print("\nInstruction Memory (8-71):")
 		for k in range(8, 72):
 			if k in self.data:
 				print(f"{k}: {self.data[k]}")
+
+	def dispDataMemory(self):
+		"""Display data memory separately"""
+		print("\nData Memory:")
+		for k,v in self.data.items():
+			if k < 8 or k >= 72:  # Skip instruction memory range
+				if isinstance(v, str) and len(v) == Length.precision:
+					print(f"{k}: {v} = {Precision.spbin2dec(v)}")
+				else:
+					print(f"{k}: {v}")
+
+	def dispRegisters(self):
+		"""Display registers with their values"""
+		print("\nRegisters:")
+		for k,v in self.data.items():
+			if isinstance(k, str):  # Named registers
+				if isinstance(v, str) and len(v) == Length.precision:
+					print(f"{k}: {v} = {Precision.spbin2dec(v)}")
+				else:
+					print(f"{k}: {v}")
+			elif isinstance(k, (int, float)):  # Numbered registers
+				if isinstance(v, str) and len(v) == Length.precision:
+					print(f"R{k}: {v} = {Precision.spbin2dec(v)}")
+				else:
+					print(f"R{k}: {v}")
+
+	def loadRegisterValue(self, reg_name):
+		"""Load a value from a register, handling both numeric and string register names"""
+		if isinstance(reg_name, str) and reg_name.startswith("R"):
+			reg_num = int(reg_name[1:])
+			return self.load(reg_num)
+		return self.load(reg_name)
+
+	def storeRegisterValue(self, reg_name, value):
+		"""Store a value to a register, handling both numeric and string register names"""
+		if isinstance(reg_name, str) and reg_name.startswith("R"):
+			reg_num = int(reg_name[1:])
+			self.store(reg_num, value)
+		else:
+			self.store(reg_name, value)
+
+	def getStackPointer(self):
+		"""Get current stack pointer value"""
+		return int(self.loadRegisterValue("SPR"))
+
+	def updateStackPointer(self, new_value):
+		"""Update stack pointer value"""
+		self.storeRegisterValue("SPR", new_value)
+
 	@staticmethod
 	# predefined values
 	def setVariable(var,name,addr,value):
