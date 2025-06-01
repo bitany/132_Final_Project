@@ -97,11 +97,22 @@ class Instruction:
         100 - Immediate          (e.g., #5)
         101 - Stack Push         (PUSH)
         110 - Stack Pop          (POP)
+        111 - Auto Inc/Dec       (R1+, -R1)
         """
         if not operand:
             return ("000", "00000000")
 
         if isinstance(operand, str):
+            # Autoincrement mode (e.g. "R1+")
+            if operand.endswith("+") and operand[:-1].startswith("R") and operand[1:-1].isdigit():
+                reg_num_bin = Length.addZeros(bin(int(operand[1:-1]))[2:], 8)
+                return ("111", reg_num_bin)
+
+            # Autodecrement mode (e.g. "-R1")
+            elif operand.startswith("-R") and operand[2:].isdigit():
+                reg_num_bin = Length.addZeros(bin(int(operand[2:]))[2:], 8)
+                return ("111", reg_num_bin)
+
             # Immediate value (e.g. "#5")
             if operand.startswith("#"):
                 try:
