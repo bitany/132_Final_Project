@@ -48,9 +48,9 @@ class Program:
 
         try:
             if mode == "000":  # Register
-                return int(AddressingMode.register(f"R{addr}"))
+                return int(AddressingMode.register(addr))
             elif mode == "001":  # Register indirect
-                return int(AddressingMode.register_indirect(f"R{addr}"))
+                return int(AddressingMode.register_indirect(addr))
             elif mode == "010":  # Direct
                 return int(AddressingMode.direct(addr))
             elif mode == "011":  # Indirect
@@ -72,22 +72,22 @@ class Program:
 
         try:
             if mode == "000":  # Register
-                Access.store("register", f"R{addr}", int(src_val))
+                Access.store("reg", addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to R{addr}")
             elif mode == "001":  # Register indirect
-                reg_addr = int(AddressingMode.register(f"R{addr}"))
-                Access.store("memory", reg_addr, int(src_val))
+                reg_addr = int(AddressingMode.register(addr))
+                Access.store("mem", reg_addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{reg_addr}]")
             elif mode == "010":  # Direct
-                Access.store("memory", addr, int(src_val))
+                Access.store("mem", addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{addr}]")
             elif mode == "011":  # Indirect
                 indirect_addr = int(AddressingMode.direct(addr))
-                Access.store("memory", indirect_addr, int(src_val))
+                Access.store("mem", indirect_addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{indirect_addr}]")
             elif mode == "101":  # Stack push
                 sp = storage.register.getStackPointer()
-                Access.store("memory", sp, int(src_val))
+                Access.store("mem", sp, int(src_val))
                 storage.register.updateStackPointer(sp + 1)
                 print(f"[DEBUG] Pushed {src_val} to stack at {sp}")
         except Exception as e:
