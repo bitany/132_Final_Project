@@ -46,38 +46,25 @@ class Program:
         mode = code[:Length.opMode]
         addr = int(code[Length.opMode:], 2)
 
-        if mode == "000":  # Register
-            return int(storage.register.loadRegisterValue(f"R{addr}"))
-        elif mode == "001":  # Register indirect
-            reg_val = int(storage.register.loadRegisterValue(f"R{addr}"))
-            return int(storage.memory.load(reg_val))
-        elif mode == "010":  # Direct
-            return int(storage.memory.load(addr))
-        elif mode == "011":  # Indirect
-            try:
-                # First load the address from memory
-                addr_value = int(storage.memory.load(addr))
-                print(f"[DEBUG] Indirect addressing: First load from memory[{addr}] = {addr_value}")
-                # Then load the value from that address
-                final_value = int(storage.memory.load(addr_value))
-                print(f"[DEBUG] Indirect addressing: Then load from memory[{addr_value}] = {final_value}")
-                return final_value
-            except Exception as e:
-                print(f"[ERROR] Indirect addressing failed: {str(e)}")
-                return 0
-        elif mode == "100":  # Immediate value
-            return addr  # Return the value directly
-        elif mode == "101":  # Stack push
-            sp = storage.register.getStackPointer()
-            storage.register.updateStackPointer(sp + 1)
-            return sp
-        elif mode == "110":  # Stack pop
-            sp = storage.register.getStackPointer()
-            if sp > 0:
-                val = int(storage.memory.load(sp - 1))
-                storage.register.updateStackPointer(sp - 1)
-                return val
-        return 0
+        try:
+            if mode == "000":  # Register
+                return int(AddressingMode.register(f"R{addr}"))
+            elif mode == "001":  # Register indirect
+                return int(AddressingMode.register_indirect(f"R{addr}"))
+            elif mode == "010":  # Direct
+                return int(AddressingMode.direct(addr))
+            elif mode == "011":  # Indirect
+                return int(AddressingMode.indirect(addr))
+            elif mode == "100":  # Indexed 
+                return addr  # Return the value directly
+            elif mode == "101":  # Stack push
+                return int(AddressingMode.stack("push"))
+            elif mode == "110":  # Stack pop
+                return int(AddressingMode.stack("pop"))
+            return 0
+        except Exception as e:
+            print(f"[ERROR] GetOp failed: {str(e)}")
+            return 0
 
     def write(self, dest_code, src_val, movcode):
         mode = dest_code[:Length.opMode]
@@ -85,22 +72,22 @@ class Program:
 
         try:
             if mode == "000":  # Register
-                storage.register.storeRegisterValue(f"R{addr}", int(src_val))
+                Access.store("register", f"R{addr}", int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to R{addr}")
             elif mode == "001":  # Register indirect
-                reg_addr = int(storage.register.loadRegisterValue(f"R{addr}"))
-                storage.memory.store(reg_addr, int(src_val))
+                reg_addr = int(AddressingMode.register(f"R{addr}"))
+                Access.store("memory", reg_addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{reg_addr}]")
             elif mode == "010":  # Direct
-                storage.memory.store(addr, int(src_val))
+                Access.store("memory", addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{addr}]")
             elif mode == "011":  # Indirect
-                indirect_addr = int(storage.memory.load(addr))
-                storage.memory.store(indirect_addr, int(src_val))
+                indirect_addr = int(AddressingMode.direct(addr))
+                Access.store("memory", indirect_addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{indirect_addr}]")
             elif mode == "101":  # Stack push
                 sp = storage.register.getStackPointer()
-                storage.memory.store(sp, int(src_val))
+                Access.store("memory", sp, int(src_val))
                 storage.register.updateStackPointer(sp + 1)
                 print(f"[DEBUG] Pushed {src_val} to stack at {sp}")
         except Exception as e:
