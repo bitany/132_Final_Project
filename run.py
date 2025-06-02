@@ -46,24 +46,29 @@ class Program:
         mode = code[:Length.opMode]
         addr = int(code[Length.opMode:], 2)
 
-        try:
-            if mode == "000":  # Register
-                return int(AddressingMode.register(f"R{addr}"))
-            elif mode == "001":  # Register indirect
-                return int(AddressingMode.register_indirect(f"R{addr}"))
-            elif mode == "010":  # Direct
-                return int(AddressingMode.direct(addr))
-            elif mode == "011":  # Indirect
-                return int(AddressingMode.indirect(addr))
-            elif mode == "100":  # Indexed 
-                return addr  # Return the value directly
-            elif mode == "101":  # Stack push
-                return int(AddressingMode.stack("push"))
-            elif mode == "110":  # Stack pop
-                return int(AddressingMode.stack("pop"))
-            return 0
-        except Exception as e:
-            print(f"[ERROR] GetOp failed: {str(e)}")
+        if mode == "000":  # Register
+            return AddressingMode.register(f"R{addr}")
+
+        elif mode == "001":  # Register indirect
+            return AddressingMode.register_indirect(f"R{addr}")
+
+        elif mode == "010":  # Direct memory access
+            return AddressingMode.direct(addr)
+
+        elif mode == "011":  # Indirect memory access
+            return AddressingMode.indirect(addr)
+
+        elif mode == "100":  # Immediate value
+            return addr  # Value is literal, no need to look up
+
+        elif mode == "101":  # Stack push (return address to write to)
+            return AddressingMode.stack("push")
+
+        elif mode == "110":  # Stack pop (returns popped value)
+            return AddressingMode.stack("pop")
+
+        else:
+            print(f"[WARNING] Unknown addressing mode: {mode}")
             return 0
 
     def write(self, dest_code, src_val, movcode):
@@ -72,22 +77,22 @@ class Program:
 
         try:
             if mode == "000":  # Register
-                Access.store("register", f"R{addr}", int(src_val))
+                storage.register.storeRegisterValue(f"R{addr}", int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to R{addr}")
             elif mode == "001":  # Register indirect
-                reg_addr = int(AddressingMode.register(f"R{addr}"))
-                Access.store("memory", reg_addr, int(src_val))
+                reg_addr = int(storage.register.loadRegisterValue(f"R{addr}"))
+                storage.memory.store(reg_addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{reg_addr}]")
             elif mode == "010":  # Direct
-                Access.store("memory", addr, int(src_val))
+                storage.memory.store(addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{addr}]")
             elif mode == "011":  # Indirect
-                indirect_addr = int(AddressingMode.direct(addr))
-                Access.store("memory", indirect_addr, int(src_val))
+                indirect_addr = int(storage.memory.load(addr))
+                storage.memory.store(indirect_addr, int(src_val))
                 print(f"[DEBUG] Wrote {src_val} to memory[{indirect_addr}]")
             elif mode == "101":  # Stack push
                 sp = storage.register.getStackPointer()
-                Access.store("memory", sp, int(src_val))
+                storage.memory.store(sp, int(src_val))
                 storage.register.updateStackPointer(sp + 1)
                 print(f"[DEBUG] Pushed {src_val} to stack at {sp}")
         except Exception as e:
@@ -189,8 +194,8 @@ class Program:
 
 if __name__ == "__main__":
     try:
-        # Access file with group extension (replace 'isk' with your group shortcut)
-        filename = "isk.inc"  # Change this to your group's file extension
+        # Access file with group extension 
+        filename = "isk.inc"
         
         print(f"[INFO] Loading program from {filename}...")
         
